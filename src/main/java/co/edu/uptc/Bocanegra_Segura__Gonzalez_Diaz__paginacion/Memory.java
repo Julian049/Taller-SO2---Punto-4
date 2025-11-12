@@ -79,7 +79,6 @@ public class Memory {
                 reemplazosTotales++;
 
 
-
                 System.out.printf("Reemplazo realizado :) a las %s%n", timestamp);
             } else {
                 System.out.println("Hay marcos libres → Cargando página...");
@@ -127,7 +126,6 @@ public class Memory {
 
         System.out.println("\nTABLA DE ACCESOS FINAL - REEMPLAZO FIFO\n");
 
-        // Nueva tabla con columna de Timestamp
         System.out.println("+" + "-".repeat(8) + "+" + "-".repeat(8) + "+" + "-".repeat(37)
                 + "+" + "-".repeat(10) + "+" + "-".repeat(17) + "+" + "-".repeat(15) + "+");
 
@@ -139,16 +137,15 @@ public class Memory {
         System.out.println("+" + "-".repeat(8) + "+" + "-".repeat(8) + "+" + "-".repeat(37)
                 + "+" + "-".repeat(10) + "+" + "-".repeat(17) + "+" + "-".repeat(15) + "+");
 
-        // Ahora asumimos que cada registro tiene una posición [8] para el timestamp
         for (String[] registro : registros) {
             System.out.printf(
                     "| %-6s | %-6s | [%-2s, %-2s, %-2s, %-2s]                | %-8s | %-15s | %-13s |%n",
-                    registro[0], // Acceso
-                    registro[1], // Página
-                    registro[2], registro[3], registro[4], registro[5], // Marcos
-                    registro[6], // ¿Fallo?
-                    registro[7], // Víctima
-                    registro.length > 8 ? registro[8] : "-" // Timestamp (si existe)
+                    registro[0],
+                    registro[1],
+                    registro[2], registro[3], registro[4], registro[5],
+                    registro[6],
+                    registro[7],
+                    registro.length > 8 ? registro[8] : "-"
             );
         }
 
