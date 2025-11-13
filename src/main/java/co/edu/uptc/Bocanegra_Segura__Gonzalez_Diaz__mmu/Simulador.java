@@ -1,5 +1,13 @@
 package co.edu.uptc.Bocanegra_Segura__Gonzalez_Diaz__mmu;
 
+import org.apache.poi.ss.usermodel.Cell;
+import org.apache.poi.ss.usermodel.Row;
+import org.apache.poi.ss.usermodel.Sheet;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -73,10 +81,11 @@ public class Simulador {
 
         resultados = new ArrayList<>();
         for (int direccion : direcciones) {
-            resultados.add(traducirDirecciones(direccion));
+            resultados.add(traducirDireccion(direccion));
         }
 
         verTabla();
+        exportarAExcel("resultados_mmu.xlsx");
 
         System.out.println("Hit Rate: ");
         double hitRate = ((double) hits / direcciones.length) * 100;
@@ -84,41 +93,83 @@ public class Simulador {
         System.out.println("El hit rate para esta simulacion teniendo en cuenta que hay " + direcciones.length + " direcciones, es del " + hitRate + "%");
 
 
-        System.out.println("Calculo manual para la direccion 1: " + direcciones[0]);
+        System.out.println("Calculo manual para la direccion 1: " + String.format("0x%04X", direcciones[0]));
         mostrarCalculoManual(direcciones[0]);
 
-        System.out.println("Calculo manual para la direccion 4: " + direcciones[3]);
+        System.out.println("Calculo manual para la direccion 4: " + String.format("0x%04X", direcciones[3]));
         mostrarCalculoManual(direcciones[3]);
 
-        System.out.println("Calculo manual para la direccion 7: " + direcciones[6]);
+        System.out.println("Calculo manual para la direccion 7: " + String.format("0x%04X", direcciones[6]));
         mostrarCalculoManual(direcciones[6]);
     }
 
-    public ResultadoTraduccion traducirDirecciones(int direccionLogica) {
+    public ResultadoTraduccion traducirDireccion(int direccionLogica) {
+
+        System.out.println("\n==================================================");
+        System.out.printf(" TRADUCCIÓN | Dirección Lógica: 0x%04X (%d)%n", direccionLogica, direccionLogica);
+        System.out.println("==================================================");
 
         int numeroDePagina = direccionLogica >> offsetBits;
+        System.out.printf("Número de página: %d%n", numeroDePagina);
 
         int offset = direccionLogica & (tamanoPagina - 1);
+        System.out.printf("Offset: 0x%X (%d)%n", offset, offset);
 
+        System.out.println("Consultando tabla de páginas...");
         EntradaTablaPaginas entradaTablaPaginas = this.entradaTablaPaginas.get(numeroDePagina);
 
         String mensaje;
-
         int marco = 0;
         int physicalAddress = 0;
+
+        ResultadoTraduccion resultadoTraduccion;
+
         if (entradaTablaPaginas.isPresente()) {
+            System.out.println("✓ Página presente en memoria RAM");
+            marco = entradaTablaPaginas.getMarcoFisico();
+            System.out.printf("Marco físico: %d%n", marco);
 
             physicalAddress = (entradaTablaPaginas.getMarcoFisico() << offsetBits) | offset;
-            marco = entradaTablaPaginas.getMarcoFisico();
+            System.out.printf("Calculando dirección física: (Marco %d << %d bits) | Offset 0x%X%n",
+                    marco, offsetBits, offset);
+            System.out.printf("Dirección física: 0x%04X (%d)%n", physicalAddress, physicalAddress);
+
             mensaje = "Hit";
             hits++;
+            System.out.println("Resultado: HIT :)");
+
+            resultadoTraduccion = new ResultadoTraduccion(direccionLogica, numeroDePagina, offset,
+                    entradaTablaPaginas.isPresente(), marco,
+                    physicalAddress, mensaje);
+
+            resultadoTraduccion.updateTimestamp();
+            System.out.println("Timestamp actualizado: " + resultadoTraduccion.getTimestamp());
         } else {
+            System.out.println("✗ Página NO presente en memoria RAM");
+            marco = -1;
+            physicalAddress = -1;
+            System.out.println("Marco físico: -");
+            System.out.println("Dirección física: -");
 
             mensaje = "Page fault";
+            System.out.println("Resultado: PAGE FAULT");
+
+            resultadoTraduccion = new ResultadoTraduccion(direccionLogica, numeroDePagina, offset,
+                    entradaTablaPaginas.isPresente(), marco,
+                    physicalAddress, mensaje);
+
+            resultadoTraduccion.updateTimestamp();
+
+            System.out.println("Timestamp actualizado: " + resultadoTraduccion.getTimestamp());
         }
 
-        return new ResultadoTraduccion(direccionLogica, numeroDePagina, offset, entradaTablaPaginas.isPresente(), marco, physicalAddress, mensaje);
+        System.out.println("==================================================\n");
+
+        return new ResultadoTraduccion(direccionLogica, numeroDePagina, offset,
+                entradaTablaPaginas.isPresente(), marco,
+                physicalAddress, mensaje);
     }
+
 
     public void mostrarCalculoManual(int dirLogica) {
         System.out.println("Inciando calculo manual para la direccion logica: " + String.format("0x%04X", dirLogica) + "\n");
@@ -167,12 +218,12 @@ public class Simulador {
 
 
             System.out.println("Y obtenemos la direccion fisica: " + "0x" + Integer.toHexString(dir2).toUpperCase());
-            System.out.println("Hit");
+            System.out.println("Hit\n\n");
         } else {
             System.out.println("El marco NO se encuentra presente en la memoria RAM");
             System.out.println("Marco: -");
             System.out.println("Dir fisica: -");
-            System.out.println("Page fault");
+            System.out.println("Page fault\n\n");
         }
 
 
@@ -187,14 +238,14 @@ public class Simulador {
 
 
         for (int i = 0; i < resultados.size(); i++) {
-            System.out.printf("%-14d %-18s %-14d %-10s %-10b %-14d %-18s %-30s %-20s%n",
+            System.out.printf("%-14d %-18s %-14d %-10s %-10s %-14s %-18s %-30s %-20s%n",
                     i + 1,
                     String.format("0x%04X", resultados.get(i).getDireccionLogica()),
                     resultados.get(i).getNumeroPagina(),
                     String.format("0x%03X", resultados.get(i).getOffset()),
-                    resultados.get(i).isPresente(),
-                    resultados.get(i).getMarcoFisico(),
-                    String.format("0x%04X", resultados.get(i).getDireccionFisica()),
+                    resultados.get(i).isPresente() == true ? "Si" : "No",
+                    resultados.get(i).getMarcoFisico() == -1 ? "-" : resultados.get(i).getMarcoFisico(),
+                    resultados.get(i).getDireccionFisica() == -1 ? "-" : String.format("0x%04X", resultados.get(i).getDireccionFisica()),
                     resultados.get(i).getMensaje(),
                     resultados.get(i).getTimestamp());
         }
@@ -202,5 +253,60 @@ public class Simulador {
         System.out.println("\n\n");
 
     }
+
+    private void exportarAExcel(String nombreArchivo) {
+        try (XSSFWorkbook workbook = new XSSFWorkbook()) {
+            Sheet sheet = workbook.createSheet("Tabla de Traducciones");
+
+            // Crear fila de encabezados
+            Row headerRow = sheet.createRow(0);
+            String[] headers = {"#", "Dirección Lógica", "Núm. Página", "Offset",
+                    "Presente", "Marco Físico", "Dirección Física",
+                    "Mensaje", "Timestamp"};
+
+            for (int i = 0; i < headers.length; i++) {
+                Cell cell = headerRow.createCell(i);
+                cell.setCellValue(headers[i]);
+            }
+
+            // Llenar datos
+            for (int i = 0; i < resultados.size(); i++) {
+                Row row = sheet.createRow(i + 1);
+
+                row.createCell(0).setCellValue(i + 1);
+                row.createCell(1).setCellValue(String.format("0x%04X", resultados.get(i).getDireccionLogica()));
+                row.createCell(2).setCellValue(resultados.get(i).getNumeroPagina());
+                row.createCell(3).setCellValue(String.format("0x%03X", resultados.get(i).getOffset()));
+                row.createCell(4).setCellValue(resultados.get(i).isPresente());
+
+                if (resultados.get(i).isPresente()) {
+                    row.createCell(5).setCellValue(resultados.get(i).getMarcoFisico());
+                    row.createCell(6).setCellValue(String.format("0x%04X", resultados.get(i).getDireccionFisica()));
+                } else {
+                    row.createCell(5).setCellValue("-");
+                    row.createCell(6).setCellValue("-");
+                }
+
+                row.createCell(7).setCellValue(resultados.get(i).getMensaje());
+                row.createCell(8).setCellValue(resultados.get(i).getTimestamp());
+            }
+
+            // Ajustar ancho de columnas automáticamente
+            for (int i = 0; i < headers.length; i++) {
+                sheet.autoSizeColumn(i);
+            }
+
+            // Escribir archivo
+            try (FileOutputStream fileOut = new FileOutputStream(new File(nombreArchivo))) {
+                workbook.write(fileOut);
+                System.out.println("Archivo Excel creado exitosamente: " + nombreArchivo);
+            }
+
+        } catch (IOException e) {
+            System.err.println("Error al exportar a Excel: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
 
 }

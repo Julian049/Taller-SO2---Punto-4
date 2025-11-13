@@ -88,7 +88,9 @@ public class ResultadoTraduccion {
         return timestamp;
     }
 
-    public void setTimestamp(String timestamp) {
-        this.timestamp = timestamp;
+    public void updateTimestamp() {
+        this.timestamp = Instant.now()
+                .atZone(ZoneId.systemDefault())
+                .format(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss.SS"));
     }
 }
